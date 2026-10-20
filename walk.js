@@ -1,0 +1,50 @@
+(()=>{
+const canvas=$('walkCanvas'),ctx=canvas.getContext('2d'),dialog=$('walkDialog');
+let camera={x:0,z:0,yaw:0,pitch:0},keys=new Set(),active=false,frame=0,last=0,pointer=null;
+const heights={desk:74,chair:90,table:74,sofa:85,cabinet:140,plant:100,monitor:42,printer:35,board:180,bin:45,dispenser:120,custom:50,partition:150,wall:280,door:210};
+function reset(){camera={x:state.w/2,z:Math.max(15,state.h-40),yaw:0,pitch:-.12}}
+function project(p){const dx=p[0]-camera.x,dz=p[2]-camera.z,c=Math.cos(camera.yaw),s=Math.sin(camera.yaw),x=dx*c-dz*s,z=-dx*s-dz*c,dy=p[1]-165,cp=Math.cos(camera.pitch),sp=Math.sin(camera.pitch);return{x,y:dy*cp-z*sp,z:z*cp+dy*sp}}
+function clip(points){let out=[];for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length],inside=a.z>=5,other=b.z>=5;if(inside)out.push(a);if(inside!==other){const t=(5-a.z)/(b.z-a.z);out.push({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:5})}}return out}
+function color(hex,factor){const n=parseInt(hex.slice(1),16);return `rgb(${Math.min(255,Math.round((n>>16)*factor))},${Math.min(255,Math.round(((n>>8)&255)*factor))},${Math.min(255,Math.round((n&255)*factor))})`}
+function draw(){const w=canvas.clientWidth,h=canvas.clientHeight;if(!w||!h)return;const dpr=Math.min(devicePixelRatio||1,2);if(canvas.width!==Math.round(w*dpr)||canvas.height!==Math.round(h*dpr)){canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr)}ctx.setTransform(dpr,0,0,dpr,0,0);const sky=ctx.createLinearGradient(0,0,0,h);sky.addColorStop(0,'#c3d6df');sky.addColorStop(1,'#f0f3ed');ctx.fillStyle=sky;ctx.fillRect(0,0,w,h);const focal=Math.min(w,h)*.85,faces=[],labels=[];
+let activeObject=null,geometryLayer=2;
+function rotatePoint(p){if(!activeObject||!activeObject.angle)return p;const o=activeObject,a=o.angle*Math.PI/180,c=Math.cos(a),s=Math.sin(a),cx=o.x+o.w/2,cz=o.y+o.h/2,dx=p[0]-cx,dz=p[2]-cz;return[cx+dx*c-dz*s,p[1],cz+dx*s+dz*c]}
+function face(points,fill,stroke='#66776a',layer=geometryLayer){const p=clip(points.map(rotatePoint).map(project));if(p.length<3)return;faces.push({p,fill,stroke,layer,depth:p.reduce((s,p)=>s+p.z,0)/p.length})}
+function box(x,z,bw,bd,y,bh,col){const a=[x,y,z],b=[x+bw,y,z],c=[x+bw,y,z+bd],d=[x,y,z+bd],aa=[x,y+bh,z],bb=[x+bw,y+bh,z],cc=[x+bw,y+bh,z+bd],dd=[x,y+bh,z+bd];face([a,b,bb,aa],color(col,.8));face([b,c,cc,bb],color(col,.7));face([c,d,dd,cc],color(col,.9));face([d,a,aa,dd],color(col,.75));face([aa,bb,cc,dd],color(col,1.08))}
+face([[0,0,0],[state.w,0,0],[state.w,0,state.h],[0,0,state.h]],'#e5e4d8','#bac5b5',0);
+// Perimeter is a background layer, so long wall faces cannot cover indoor furniture.
+geometryLayer=1.5;
+const boundary=state.boundary||'glass',wallHeight=280;
+function perimeter(x,z,length,vertical){const thickness=10;
+if(boundary==='wall'){box(x,z,vertical?thickness:length,vertical?length:thickness,0,wallHeight,'#e2e3da');return}
+const piece=(offset,y,span,height,col)=>box(x+(vertical?0:offset),z+(vertical?offset:0),vertical?thickness:span,vertical?span:thickness,y,height,col);
+piece(0,0,length,45,'#d4d9d2');piece(0,wallHeight-14,length,14,'#637b7c');
+const panels=Math.max(1,Math.ceil(length/180)),panel=length/panels;
+for(let i=0;i<panels;i++){const offset=i*panel;piece(offset,45,6,wallHeight-45,'#637b7c');
+// Stylized city panorama and reflections inside the window frame.
+const pane=(a,y,b,height,col)=>{const inset=vertical?(x<state.w/2?11:-1):(z<state.h/2?11:-1),xx=x+(vertical?inset:a),zz=z+(vertical?a:inset);const pts=vertical?[[xx,y,zz],[xx,y,zz+b],[xx,y+height,zz+b],[xx,y+height,zz]]:[[xx,y,zz],[xx+b,y,zz],[xx+b,y+height,zz],[xx,y+height,zz]];const before=faces.length;face(pts,col,'rgba(0,0,0,0)');if(faces.length>before)faces[faces.length-1].depth=project([x+(vertical?inset:offset+panel/2),150,z+(vertical?offset+panel/2:inset)]).z};
+const pw=Math.max(1,panel-7),left=offset+6;
+pane(left,46,pw,65,'#d4e3d8');pane(left,111,pw,48,'#c0d8df');pane(left,159,pw,48,'#b3d3e4');pane(left,207,pw,58,'#a4c9e1');
+for(let j=0;j<4;j++){const bw=pw/5,bx=left+j*pw/4,top=104+((i*7+j*11)%5)*13;pane(bx,58,bw,top-58,j%2?'#a5bdcd':'#91adbf');for(let row=0;row<3;row++)for(let col=0;col<2;col++)pane(bx+4+col*bw*.43,70+row*17,Math.max(2,bw*.19),5,'#d5e7ed')}
+pane(left+pw*.12,175,pw*.06,70,'#dcebf0');pane(left+pw*.2,205,pw*.025,40,'#e9f2f2');
+}
+piece(length-6,45,6,wallHeight-45,'#637b7c');piece(0,115,length,5,'#71898a')}
+if(boundary!=='open'){perimeter(0,0,state.w,false);perimeter(0,state.h-10,state.w,false);perimeter(0,0,state.h,true);perimeter(state.w-10,0,state.h,true)}
+geometryLayer=2;
+for(const o of state.items){activeObject=o;if(o.type==='zone'){face([[o.x,1,o.y],[o.x+o.w,1,o.y],[o.x+o.w,1,o.y+o.h],[o.x,1,o.y+o.h]],color(o.color,1.12),o.color,1);labels.push({p:[o.x+o.w/2,6,o.y+o.h/2],text:o.name});continue}const ht=heights[o.type]||70,base=o.top?76:0;
+if(['desk','table'].includes(o.type)){box(o.x,o.y,o.w,o.h,ht-5,5,o.color);for(const x of [o.x+5,o.x+o.w-10])for(const z of [o.y+5,o.y+o.h-10])box(x,z,5,5,0,ht-5,'#899387')}
+else if(o.type==='chair'){box(o.x,o.y,o.w,o.h,42,10,o.color);box(o.x+4,o.y+2,o.w-8,8,56,ht-56,'#849b8c');box(o.x+o.w/2-3,o.y+o.h/2-3,6,6,0,42,'#7b887d')}
+else if(o.type==='cabinet'){box(o.x,o.y,o.w,o.h,0,ht,'#d9d7c9');const panels=Math.max(2,Math.round(o.w/45));for(let i=0;i<panels;i++){const pw=o.w/panels;box(o.x+i*pw+1,o.y+o.h,pw-2,2,8,ht-14,o.color);box(o.x+i*pw+pw-8,o.y+o.h+3,2,2,ht*.52,12,'#788276')}box(o.x+3,o.y+3,o.w-6,o.h-6,ht,3,'#ece5d5')}
+else if(o.type==='sofa'){box(o.x,o.y,o.w,o.h,8,25,'#7f9988');box(o.x,o.y,o.w,14,33,52,o.color);box(o.x,o.y,14,o.h,33,30,o.color);box(o.x+o.w-14,o.y,14,o.h,33,30,o.color);const seat=(o.w-30)/2;for(let i=0;i<2;i++)box(o.x+15+i*seat,o.y+16,seat-2,o.h-19,33,14,'#c0d3c3')}
+else if(o.type==='monitor'){box(o.x+o.w*.42,o.y+o.h*.25,o.w*.16,o.h*.5,base,3,'#667b80');box(o.x+o.w*.47,o.y+o.h*.4,o.w*.06,4,base+3,15,'#667b80');box(o.x,o.y+o.h*.38,o.w,4,base+16,28,'#405762');box(o.x+2,o.y+o.h*.38+4,o.w-4,1,base+18,24,'#91c3d3')}
+else if(o.type==='plant'){box(o.x+o.w*.2,o.y+o.h*.2,o.w*.6,o.h*.6,0,32,'#d2c3ab');box(o.x+o.w*.44,o.y+o.h*.44,o.w*.12,o.h*.12,32,35,'#8a9274');box(o.x+o.w*.12,o.y+o.h*.15,o.w*.76,o.h*.7,54,25,'#7b9e70');box(o.x+o.w*.25,o.y+o.h*.25,o.w*.5,o.h*.5,79,18,'#94ad80')}
+else if(o.type==='door'){const thickness=6;if(o.vertical){box(o.x,o.y,thickness,o.h,0,ht,o.color)}else box(o.x,o.y,o.w,thickness,0,ht,o.color)}
+else box(o.x,o.y,o.w,o.h,base,ht,o.color);
+labels.push({p:[o.x+o.w/2,base+ht+20,o.y+o.h/2],text:o.owner?o.owner+' · '+o.name:o.name})}
+faces.sort((a,b)=>a.layer-b.layer||b.depth-a.depth);for(const f of faces){ctx.beginPath();f.p.forEach((p,i)=>{const x=w/2+p.x/p.z*focal,y=h/2-p.y/p.z*focal;i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.closePath();ctx.fillStyle=f.fill;ctx.fill();ctx.strokeStyle=f.stroke;ctx.lineWidth=.6;ctx.stroke()}
+ctx.font='11px sans-serif';ctx.textAlign='center';for(const l of labels){const p=project(l.p);if(p.z<25)continue;const x=w/2+p.x/p.z*focal,y=h/2-p.y/p.z*focal;if(x<0||x>w||y<0||y>h)continue;const width=ctx.measureText(l.text).width+14;ctx.fillStyle='#f8fcf3d9';ctx.fillRect(x-width/2,y-13,width,19);ctx.fillStyle='#49624c';ctx.fillText(l.text,x,y)}ctx.textAlign='left';ctx.fillStyle='#ffffffdf';ctx.fillRect(14,14,260,52);ctx.fillStyle='#355541';ctx.fillText((floors.find(f=>f.id===currentFloorId)?.name||'현재 층')+' · '+state.name,24,35);ctx.fillText('눈높이 1.65m · '+(state.w/100)+' × '+(state.h/100)+'m',24,54)}
+function tick(time){if(!active)return;const dt=Math.min((time-last)/1000,.05)||0;last=time;const speed=(keys.has('Shift')?600:200)*dt;let forward=0,side=0;if(keys.has('w')||keys.has('ArrowUp'))forward++;if(keys.has('s')||keys.has('ArrowDown'))forward--;if(keys.has('a')||keys.has('ArrowLeft'))side--;if(keys.has('d')||keys.has('ArrowRight'))side++;if(keys.has('q'))camera.yaw-=dt*1.5;if(keys.has('e'))camera.yaw+=dt*1.5;camera.x=Math.max(5,Math.min(state.w-5,camera.x-Math.sin(camera.yaw)*forward*speed+Math.cos(camera.yaw)*side*speed));camera.z=Math.max(5,Math.min(state.h-5,camera.z-Math.cos(camera.yaw)*forward*speed-Math.sin(camera.yaw)*side*speed));draw();frame=requestAnimationFrame(tick)}
+$('walkOpen').onclick=()=>{reset();dialog.showModal();active=true;last=performance.now();canvas.focus();frame=requestAnimationFrame(tick)};$('walkReset').onclick=reset;$('walkClose').onclick=()=>dialog.close();dialog.addEventListener('close',()=>{active=false;keys.clear();pointer=null;cancelAnimationFrame(frame)});
+dialog.addEventListener('keydown',e=>{if(e.target.tagName==='INPUT')return;const k=e.key.length===1?e.key.toLowerCase():e.key;if(['w','a','s','d','q','e','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Shift'].includes(k)){e.preventDefault();e.stopPropagation();keys.add(k)}});dialog.addEventListener('keyup',e=>keys.delete(e.key.length===1?e.key.toLowerCase():e.key));window.addEventListener('blur',()=>keys.clear());canvas.onpointerdown=e=>{pointer={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId)};canvas.onpointermove=e=>{if(!pointer)return;camera.yaw-=(e.clientX-pointer.x)*.005;camera.pitch=Math.max(-.9,Math.min(.7,camera.pitch-(e.clientY-pointer.y)*.004));pointer={x:e.clientX,y:e.clientY}};canvas.onpointerup=canvas.onpointercancel=()=>pointer=null;
+document.querySelectorAll('[data-walk]').forEach(b=>{b.onpointerdown=e=>{e.preventDefault();b.setPointerCapture(e.pointerId);keys.add(b.dataset.walk)};b.onpointerup=b.onpointercancel=()=>keys.delete(b.dataset.walk)});
+})();
