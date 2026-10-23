@@ -1,7 +1,7 @@
 (()=>{
 const canvas=$('walkCanvas'),ctx=canvas.getContext('2d'),dialog=$('walkDialog');
 let camera={x:0,z:0,yaw:0,pitch:0},keys=new Set(),active=false,frame=0,last=0,pointer=null;
-const heights={desk:74,chair:90,table:74,sofa:85,cabinet:140,plant:100,monitor:42,printer:35,board:180,bin:45,dispenser:120,custom:50,partition:150,wall:280,door:210};
+const heights={bed:55,wardrobe:200,kitchen:90,toilet:75,bath:60,dining:74,hospitalBed:75,examBed:80,reception:110,medicalCart:90,window:120,desk:74,chair:90,table:74,sofa:85,cabinet:140,plant:100,monitor:42,printer:35,board:180,bin:45,dispenser:120,custom:50,partition:150,wall:280,door:210};
 function reset(){camera={x:state.w/2,z:Math.max(15,state.h-40),yaw:0,pitch:-.12}}
 function project(p){const dx=p[0]-camera.x,dz=p[2]-camera.z,c=Math.cos(camera.yaw),s=Math.sin(camera.yaw),x=dx*c-dz*s,z=-dx*s-dz*c,dy=p[1]-165,cp=Math.cos(camera.pitch),sp=Math.sin(camera.pitch);return{x,y:dy*cp-z*sp,z:z*cp+dy*sp}}
 function clip(points){let out=[];for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length],inside=a.z>=5,other=b.z>=5;if(inside)out.push(a);if(inside!==other){const t=(5-a.z)/(b.z-a.z);out.push({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:5})}}return out}
@@ -31,8 +31,11 @@ pane(left+pw*.12,175,pw*.06,70,'#dcebf0');pane(left+pw*.2,205,pw*.025,40,'#e9f2f
 piece(length-6,45,6,wallHeight-45,'#637b7c');piece(0,115,length,5,'#71898a')}
 if(boundary!=='open'){perimeter(0,0,state.w,false);perimeter(0,state.h-10,state.w,false);perimeter(0,0,state.h,true);perimeter(state.w-10,0,state.h,true)}
 geometryLayer=2;
-for(const o of state.items){activeObject=o;if(o.type==='zone'){face([[o.x,1,o.y],[o.x+o.w,1,o.y],[o.x+o.w,1,o.y+o.h],[o.x,1,o.y+o.h]],color(o.color,1.12),o.color,1);labels.push({p:[o.x+o.w/2,6,o.y+o.h/2],text:o.name});continue}const ht=heights[o.type]||70,base=o.top?76:0;
-if(['desk','table'].includes(o.type)){box(o.x,o.y,o.w,o.h,ht-5,5,o.color);for(const x of [o.x+5,o.x+o.w-10])for(const z of [o.y+5,o.y+o.h-10])box(x,z,5,5,0,ht-5,'#899387')}
+for(const o of state.items){activeObject=o;if(o.type==='zone'||o.type==='room'){const vertices=o.type==='room'&&Array.isArray(o.vertices)?o.vertices.map(p=>[o.x+p.x*o.w,1,o.y+p.y*o.h]):[[o.x,1,o.y],[o.x+o.w,1,o.y],[o.x+o.w,1,o.y+o.h],[o.x,1,o.y+o.h]];face(vertices,color(o.color,1.12),o.color,1);labels.push({p:[o.x+o.w/2,6,o.y+o.h/2],text:o.name});continue}const ht=heights[o.type]||70,base=o.top?76:0;
+if(o.type==='wall'){const openings=state.items.filter(p=>p.wallId===o.id&&['door','window'].includes(p.type)).sort((a,b)=>a.wallOffset-b.wallOffset);let cursor=0;for(const p of openings){const start=Math.max(cursor,Math.min(o.w,p.wallOffset||0)),end=Math.min(o.w,start+p.w);if(start>cursor)box(o.x+cursor,o.y,start-cursor,o.h,0,ht,o.color);const low=p.type==='window'?90:0,high=p.type==='window'?210:210;if(low)box(o.x+start,o.y,end-start,o.h,0,low,o.color);box(o.x+start,o.y,end-start,o.h,high,ht-high,o.color);cursor=end}if(cursor<o.w)box(o.x+cursor,o.y,o.w-cursor,o.h,0,ht,o.color)}
+else if(o.type==='window'){const y=90;box(o.x,o.y,o.w,4,y,120,'#afd4e0');for(const x of [o.x,o.x+o.w-4])box(x,o.y-1,4,7,y,120,'#6e939a');box(o.x,o.y-1,o.w,7,y,4,'#6e939a');box(o.x,o.y-1,o.w,7,y+116,4,'#6e939a')}
+else if(['bed','hospitalBed','examBed'].includes(o.type)){box(o.x,o.y,o.w,o.h,12,ht-18,o.color);box(o.x+4,o.y+4,o.w-8,o.h-8,ht-6,12,'#e8eee4');box(o.x+o.w*.12,o.y+10,o.w*.76,35,ht+6,7,'#f9f8ef');box(o.x,o.y,o.w,6,0,ht+25,o.color)}
+else if(['desk','table','dining'].includes(o.type)){box(o.x,o.y,o.w,o.h,ht-5,5,o.color);for(const x of [o.x+5,o.x+o.w-10])for(const z of [o.y+5,o.y+o.h-10])box(x,z,5,5,0,ht-5,'#899387')}
 else if(o.type==='chair'){box(o.x,o.y,o.w,o.h,42,10,o.color);box(o.x+4,o.y+2,o.w-8,8,56,ht-56,'#849b8c');box(o.x+o.w/2-3,o.y+o.h/2-3,6,6,0,42,'#7b887d')}
 else if(o.type==='cabinet'){box(o.x,o.y,o.w,o.h,0,ht,'#d9d7c9');const panels=Math.max(2,Math.round(o.w/45));for(let i=0;i<panels;i++){const pw=o.w/panels;box(o.x+i*pw+1,o.y+o.h,pw-2,2,8,ht-14,o.color);box(o.x+i*pw+pw-8,o.y+o.h+3,2,2,ht*.52,12,'#788276')}box(o.x+3,o.y+3,o.w-6,o.h-6,ht,3,'#ece5d5')}
 else if(o.type==='sofa'){box(o.x,o.y,o.w,o.h,8,25,'#7f9988');box(o.x,o.y,o.w,14,33,52,o.color);box(o.x,o.y,14,o.h,33,30,o.color);box(o.x+o.w-14,o.y,14,o.h,33,30,o.color);const seat=(o.w-30)/2;for(let i=0;i<2;i++)box(o.x+15+i*seat,o.y+16,seat-2,o.h-19,33,14,'#c0d3c3')}
