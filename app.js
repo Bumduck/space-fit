@@ -56,7 +56,7 @@ $('zoomOut').onclick=()=>setZoom(zoomLevel-.25);
 $('zoomFit').onclick=()=>setZoom(1);
 document.addEventListener('keydown',e=>{if(e.defaultPrevented||e.ctrlKey||e.metaKey||e.altKey||e.isComposing||e.target.closest('input,textarea,select,[contenteditable],dialog'))return;if(e.key==='+'||e.key==='='){e.preventDefault();setZoom(zoomLevel+.25)}else if(e.key==='-'||e.key==='_'){e.preventDefault();setZoom(zoomLevel-.25)}else if(e.key==='0'){e.preventDefault();setZoom(1)}});
 
-function floorSnapshot(){return JSON.parse(JSON.stringify({name:state.name,w:state.w,h:state.h,boundary:state.boundary||'glass',items:state.items}))}
+function floorSnapshot(){return JSON.parse(JSON.stringify({name:state.name,w:state.w,h:state.h,boundary:state.boundary||'glass',background:state.background||null,items:state.items}))}
 function ensureFloors(){if(!floors.length)floors=[{id:currentFloorId,name:'1층',data:floorSnapshot()}]}
 function captureFloor(){ensureFloors();const floor=floors.find(f=>f.id===currentFloorId);if(floor)floor.data=floorSnapshot()}
 function buildingData(){captureFloor();return{...floorSnapshot(),building:{floors,currentFloorId}}}
